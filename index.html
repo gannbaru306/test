@@ -1,0 +1,17 @@
+<div id="scoreContainer" style="width:600px;height:300px;background:#fff">
+  <h2>テスト楽譜</h2>
+  <p>ダウンロードテスト用の内容</p>
+</div>
+<button id="pdfBtn">PDFテスト</button>
+<script>
+document.getElementById('pdfBtn').onclick = () => {
+  html2canvas(document.getElementById('scoreContainer')).then(canvas => {
+    const pdf = new window.jspdf.jsPDF();
+    const imgData = canvas.toDataURL('image/png');
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+    pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+    pdf.save('test.pdf');
+  }).catch(err => console.error(err));
+};
+</script>
