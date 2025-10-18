@@ -3,147 +3,49 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>MusicXML→ドレミ付きPDF生成</title>
+<title>MusicXML → ドレミ付きPDF（完全版）</title>
 <style>
-  body { font-family: sans-serif; text-align: center; background: #f5f7fa; padding: 1em; }
-  #scoreContainer { background: #fff; border: 1px solid #ccc; margin: 1em auto; max-width: 900px; padding: 1em; }
-  #status { text-align: left; white-space: pre-line; max-width: 900px; margin: 1em auto; background: #fff; border: 1px solid #ddd; padding: 0.5em; height: 180px; overflow: auto; }
-  input, button { padding: 0.6em 1em; margin: 0.3em; }
+  body { font-family: sans-serif; background: #f4f6fa; padding: 1em; text-align: center; }
+  #scoreContainer { background: #fff; border: 1px solid #ccc; margin: 1em auto; padding: 1em; max-width: 900px; }
+  #status { background: #fff; border: 1px solid #ddd; padding: .5em; margin: 1em auto; max-width: 900px; text-align: left; height: 160px; overflow: auto; white-space: pre-line; }
+  input, button { padding: .6em 1em; margin: .4em; }
 </style>
 </head>
 <body>
-  <h1>xml→ドレミ付き楽譜</h1>
+  <h1>🎼 XML → ドレミ付き楽譜（A4高画質PDF対応）</h1>
+
   <div>
     <input type="file" id="fileInput" accept=".xml,.musicxml,.mxl" />
     <button id="loadBtn">読み込み</button>
     <button id="pdfBtn">PDF保存</button>
   </div>
+
   <div id="status">初期化中...</div>
   <div id="scoreContainer"></div>
 
+  <!-- 必須ライブラリ -->
   <script src="https://cdn.jsdelivr.net/npm/opensheetmusicdisplay@1.7.6/build/opensheetmusicdisplay.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
 <script>
 (function(){
-  const statusEl = document.getElementById("status");
-  const log = s => statusEl.textContent = new Date().toLocaleTimeString() + " — " + s + "\n" + statusEl.textContent;
+  const log = msg => {
+    const el = document.getElementById("status");
+    el.textContent = new Date().toLocaleTimeString() + " — " + msg + "\n" + el.textContent;
+    console.log(msg);
+  };
 
-  const waitLib = setInterval(()=>{
-    if(window.opensheetmusicdisplay?.OpenSheetMusicDisplay){
-      clearInterval(waitLib);
-      log("OSMDロード完了。初期化開始...");
-      init();
-    } else log("OSMD読み込み中...");
-  },500);
+  const wait = setInterval(() => {
+    if (window.opensheetmusicdisplay?.OpenSheetMusicDisplay) {
+      clearInterval(wait);
+      log("OSMD 読み込み完了。初期化開始。");
+      initApp();
+    } else log("OSMD 待機中...");
+  }, 500);
 
-  function toDoremi(step, alter, octave){
-    const base = {C:"ド", D:"レ", E:"ミ", F:"ファ", G:"ソ", A:"ラ", B:"シ"};
+  function toDoremi(step, alter, octave) {
+    const base = { C: "ド", D: "レ", E: "ミ", F: "ファ", G: "ソ", A: "ラ", B: "シ" };
     let name = base[step] || step;
-    if(alter===1) name += "#";
-    if(alter===-1) name += "♭";
-    const o = octave;
-    return name + (o>0? "⁺".repeat(o): o<0? "⁻".repeat(-o): "");
-  }
-
-  function processXML(xmlText){
-    const parser = new DOMParser();
-    const xmlDoc = parser.parseFromString(xmlText,"text/xml");
-    const notes = xmlDoc.getElementsByTagName("note");
-    let chord = [];
-    function flush(){
-      if(chord.length<=1){ chord=[]; return; }
-      chord.forEach((n,i)=>{
-        const pitch = n.getElementsByTagName("pitch")[0];
-        if(!pitch) return;
-        const step=pitch.getElementsByTagName("step")[0]?.textContent;
-        const alter=parseInt(pitch.getElementsByTagName("alter")[0]?.textContent||0);
-        const octave=parseInt(pitch.getElementsByTagName("octave")[0]?.textContent||4);
-        const lyric=xmlDoc.createElement("lyric");
-        lyric.setAttribute("number", i+1);
-        const text=xmlDoc.createElement("text");
-        text.textContent=toDoremi(step,alter,octave);
-        lyric.appendChild(text);
-        n.appendChild(lyric);
-      });
-      chord=[];
-    }
-    for(let n of notes){
-      const isChord=n.getElementsByTagName("chord").length>0;
-      if(!isChord){ flush(); chord=[n]; }
-      else chord.push(n);
-    }
-    flush();
-    return new XMLSerializer().serializeToString(xmlDoc);
-  }
-
-  function init(){
-    const container=document.getElementById("scoreContainer");
-    const osmd=new opensheetmusicdisplay.OpenSheetMusicDisplay(container,{backend:"svg"});
-    log("OSMD初期化完了。");
-
-    document.getElementById("loadBtn").onclick=()=>{
-      const file=document.getElementById("fileInput").files[0];
-      if(!file) return log("ファイル未選択");
-      const reader=new FileReader();
-      reader.onload=async e=>{
-        log("読み込み中...");
-        try{
-          const xml = processXML(e.target.result);
-          await osmd.load(xml);
-          await osmd.render();
-          log("レンダリング完了。PDF保存可。");
-        }catch(err){ log("エラー:"+err); }
-      };
-      reader.readAsText(file,"utf-8");
-    };
-
-    document.getElementById("pdfBtn").onclick=async()=>{
-      const svg=container.querySelector("svg");
-      if(!svg) return log("まだ楽譜がありません。");
-      log("PDF生成中...");
-      const { jsPDF } = window.jspdf;
-      const pdf = new jsPDF({unit:"pt",format:"a4",orientation:"portrait"});
-      const pageW=pdf.internal.pageSize.getWidth();
-      const pageH=pdf.internal.pageSize.getHeight();
-
-      const vb=svg.viewBox.baseVal;
-      const svgW=vb?.width||parseFloat(svg.getAttribute("width"))||1000;
-      const svgH=vb?.height||parseFloat(svg.getAttribute("height"))||1400;
-      const scale=pageW/svgW;
-
-      const canvas=document.createElement("canvas");
-      const DPR=3;
-      const renderW=svgW*scale, renderH=svgH*scale;
-      canvas.width=renderW*DPR;
-      canvas.height=renderH*DPR;
-      const ctx=canvas.getContext("2d");
-      const blob=new Blob([new XMLSerializer().serializeToString(svg)],{type:"image/svg+xml"});
-      const url=URL.createObjectURL(blob);
-      const img=new Image();
-      img.onload=()=>{
-        ctx.setTransform(DPR,0,0,DPR,0,0);
-        ctx.drawImage(img,0,0,renderW,renderH);
-        const totalPages=Math.ceil(renderH/pageH);
-        for(let i=0;i<totalPages;i++){
-          if(i>0) pdf.addPage();
-          const sy=i*pageH;
-          const slice=document.createElement("canvas");
-          slice.width=canvas.width;
-          slice.height=pageH*DPR;
-          const sctx=slice.getContext("2d");
-          sctx.drawImage(canvas,0,sy*DPR,canvas.width,pageH*DPR,0,0,canvas.width,pageH*DPR);
-          const data=slice.toDataURL("image/png",1.0);
-          pdf.addImage(data,"PNG",0,0,pageW,pageH);
-        }
-        pdf.save("score_doremi.pdf");
-        URL.revokeObjectURL(url);
-        log("PDF保存完了。");
-      };
-      img.src=url;
-    };
-  }
-})();
-</script>
-</body>
-</html>
+    if (alter === 1) name += "#";
+    if (alter === -1) name += "♭";
+    return name + "
