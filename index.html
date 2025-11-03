@@ -21,6 +21,9 @@
       border-color: #00aaff;
       background-color: #f0f8ff;
     }
+    #player-controls button {
+      margin-right: 5px;
+    }
     #log {
       background: #f4f4f4;
       border: 1px solid #ccc;
@@ -30,11 +33,14 @@
       overflow-y: auto;
       margin-top: 10px;
     }
+    #seekBar {
+      width: 100%;
+      margin-top: 8px;
+    }
   </style>
 </head>
 <body>
-  <h2>MIDI変換ツールv2.6 + 再生制御拡張</h2>
-
+  <h2>MIDI変換ツールv2.7</h2>
   <div id="drop-zone">ここをクリックするか、MIDIファイルをドラッグしてください</div>
   <input type="file" id="midiFile" accept=".mid,.midi" style="display:none;" />
   <button id="convertBtn">変換してダウンロード</button>
@@ -42,14 +48,16 @@
   <div id="player-controls">
     <button id="playBtn">再生</button>
     <button id="pauseBtn">一時停止</button>
-    <!-- ✅ ここに追加 -->
     <button id="rewindBtn">⏪ 10秒戻す</button>
     <button id="forwardBtn">⏩ 10秒進める</button>
     <button id="restartBtn">⏮ 最初から</button>
   </div>
 
+  <input type="range" id="seekBar" min="0" max="100" value="0" step="0.1">
+  <br>
   <label for="volumeSlider">音量</label>
   <input type="range" id="volumeSlider" min="0" max="1" step="0.01" value="0.5">
+
   <pre id="log">ログ出力エリア</pre>
 
   <script type="module">
@@ -57,38 +65,33 @@
 
     const picoAudio = new PicoAudio();
     let midiLoaded = false;
-    let currentVolume = 0.5;
     let midi = null;
+    let duration = 0;
+    let currentVolume = 0.5;
     const log = document.getElementById("log");
 
     const dropZone = document.getElementById("drop-zone");
     const fileInput = document.getElementById("midiFile");
 
     dropZone.addEventListener("click", () => fileInput.click());
-    dropZone.addEventListener("dragover", (e) => {
+    dropZone.addEventListener("dragover", e => {
       e.preventDefault();
       dropZone.classList.add("dragover");
     });
-    dropZone.addEventListener("dragleave", () => {
-      dropZone.classList.remove("dragover");
-    });
-    dropZone.addEventListener("drop", (e) => {
+    dropZone.addEventListener("dragleave", () => dropZone.classList.remove("dragover"));
+    dropZone.addEventListener("drop", e => {
       e.preventDefault();
       dropZone.classList.remove("dragover");
       const file = e.dataTransfer.files[0];
-      if (file) {
-        fileInput.files = e.dataTransfer.files;
-        handleFile(file);
-      }
+      if (file) handleFile(file);
     });
-
-    fileInput.addEventListener("change", (e) => {
+    fileInput.addEventListener("change", e => {
       const file = e.target.files[0];
       if (file) handleFile(file);
     });
 
     async function handleFile(file) {
-      log.textContent = `読み込み完了: ${file.name}`;
+      log.textContent = `読み込み中: ${file.name}`;
       const arrayBuffer = await file.arrayBuffer();
       midi = new Midi(arrayBuffer);
       const smfData = new Uint8Array(arrayBuffer);
@@ -96,215 +99,62 @@
       const parsedData = picoAudio.parseSMF(smfData);
       picoAudio.setData(parsedData);
       midiLoaded = true;
-      log.textContent += "\n再生準備完了";
+      duration = parsedData.playTime; // 再生時間(秒)
+      log.textContent = `読み込み完了: ${file.name}\n再生準備完了 (${duration.toFixed(1)}秒)`;
     }
 
+    // 再生・停止
     document.getElementById("playBtn").addEventListener("click", () => {
-      if (!midiLoaded) {
-        log.textContent += "\nMIDIファイルを読み込んでください";
-        return;
-      }
+      if (!midiLoaded) return log.textContent += "\nMIDIファイルを読み込んでください";
       picoAudio.play();
       log.textContent += "\n再生開始";
     });
-
     document.getElementById("pauseBtn").addEventListener("click", () => {
-      picoAudio.stop();
-      log.textContent += "\n一時停止しました";
+      picoAudio.pause();
+      log.textContent += "\n一時停止";
     });
 
-    document.getElementById("volumeSlider").addEventListener("input", (e) => {
+    // 10秒戻す・進める・最初から
+    document.getElementById("rewindBtn").addEventListener("click", () => {
+      const newTime = Math.max(picoAudio.context.currentTime - picoAudio.startTime - 10, 0);
+      picoAudio.setStartTime(newTime);
+      picoAudio.play();
+      log.textContent += "\n⏪ 10秒戻しました";
+    });
+    document.getElementById("forwardBtn").addEventListener("click", () => {
+      const newTime = Math.min(picoAudio.context.currentTime - picoAudio.startTime + 10, duration);
+      picoAudio.setStartTime(newTime);
+      picoAudio.play();
+      log.textContent += "\n⏩ 10秒進めました";
+    });
+    document.getElementById("restartBtn").addEventListener("click", () => {
+      picoAudio.setStartTime(0);
+      picoAudio.play();
+      log.textContent += "\n⏮ 最初から再生";
+    });
+
+    // 音量スライダー
+    document.getElementById("volumeSlider").addEventListener("input", e => {
       currentVolume = parseFloat(e.target.value);
       picoAudio.setMasterVolume(currentVolume);
     });
 
-    // ✅ 以下3つの新機能ボタン処理を追加
-    const SEEK_INTERVAL = 10; // 秒
-
-    document.getElementById("rewindBtn").addEventListener("click", () => {
+    // シークバー
+    const seekBar = document.getElementById("seekBar");
+    seekBar.addEventListener("input", e => {
       if (!midiLoaded) return;
-      const newTime = Math.max(picoAudio.context.currentTime - picoAudio.startTime - SEEK_INTERVAL, 0);
-      picoAudio.stop();
-      picoAudio.play(newTime);
-      log.textContent += `\n${SEEK_INTERVAL}秒戻しました`;
+      const percent = parseFloat(e.target.value);
+      const newTime = (percent / 100) * duration;
+      picoAudio.setStartTime(newTime);
+      picoAudio.play();
     });
 
-    document.getElementById("forwardBtn").addEventListener("click", () => {
-      if (!midiLoaded) return;
-      const newTime = picoAudio.context.currentTime - picoAudio.startTime + SEEK_INTERVAL;
-      picoAudio.stop();
-      picoAudio.play(newTime);
-      log.textContent += `\n${SEEK_INTERVAL}秒進めました`;
-    });
-
-    document.getElementById("restartBtn").addEventListener("click", () => {
-      if (!midiLoaded) return;
-      picoAudio.stop();
-      picoAudio.play(0);
-      log.textContent += "\n最初から再生しました";
-    });
-
-    /* ======= 以下、変換処理（そのまま） ======= */
-    const gmToScratchId = gm => {
-      if (gm < 4) return 1;
-      if (gm < 7) return 2;
-      if (gm < 12) return 17;
-      if (gm === 12) return 16;
-      if (gm === 13) return 19;
-      if (gm === 14) return 16;
-      if (gm === 15) return 17;
-      if (gm < 20) return 3;
-      if (gm < 24) return 6;
-      if (gm < 27) return 4;
-      if (gm < 32) return 5;
-      if (gm < 40) return 6;
-      if (gm < 48) return 8;
-      if (gm < 52) return 15;
-      if (gm < 56) return 11;
-      if (gm < 60) return 9;
-      if (gm < 65) return 10;
-      if (gm < 68) return 11;
-      if (gm < 72) return 14;
-      if (gm < 75) return 12;
-      if (gm < 77) return 13;
-      if (gm < 80) return 13;
-      if (gm < 88) return 20;
-      if (gm < 96) return 21;
-      if (gm < 104) return 20;
-      if (gm < 112) return 16;
-      if (gm < 120) return 18;
-      if (gm < 128) return 0;
-      return 1;
-    };
-
-    const midiToScratchDrum = {
-      27: 2, 35: 2, 36: 2, 37: 3, 38: 1, 39: 8, 40: 1, 41: 1, 42: 6, 43: 1, 44: 6,
-      45: 1, 46: 5, 47: 1, 48: 1, 49: 4, 50: 10, 51: 4, 54: 7, 55: 18, 56: 11,
-      57: 4, 58: 17, 60: 13, 61: 13, 62: 9, 63: 14, 64: 14, 67: 16, 69: 15,
-      71: 14, 72: 18, 75: 9, 76: 10, 77: 13, 81: 12
-    };
-
-    const customInstruments = {
-      "8-bit square": 21, "8-bit sawtooth": 20, "NES triangle": 6, "FM bell": 16,
-      "ambient pad": 21, "square lead": 21, "saw lead": 20, "triangle wave": 6,
-      "pulse wave": 21, "chip bass": 6, "chip lead": 20, "retro pad": 21,
-      "vox": 15, "voice": 15, "pluck": 4, "synth brass": 9, "synth flute": 12,
-      "synth choir": 15, "bit crash": 21, "glitch": 21, "laser": 20, "noise": 0,
-      "french horn": 9, "english horn": 10, "synth horn": 20, "ambient horn": 21,
-      "retro horn": 20, "brass horn": 9
-    };
-
-    const normalizeVelocity = v =>
-          Math.max(Math.round((v ** 2) * 100), 10);
-    const sanitizeLabel = text => text.toLowerCase().replace(/[^a-z0-9]/g, '');
-
-    document.getElementById("convertBtn").addEventListener("click", async () => {
-      if (!midi) {
-        alert("MIDIファイルを選択してください");
-        return;
-      }
-         const ticksPerBeat = midi.header.ppq;
-      const bpm = midi.header.tempos[0]?.bpm || 150;
-      const secondsPerBeat = 60 / bpm;
-      const ticksToSeconds = ticks => (ticks / ticksPerBeat) * secondsPerBeat;
-
-      const trackNotes = {};
-      midi.tracks.forEach((track, i) => {
-        const labelRaw = track.name || `Track${i + 1}`;
-        const label = `${labelRaw}_Track${i + 1}`;
-        const normalizedLabel = sanitizeLabel(label);
-        const programNumber = track.instrument?.number ?? null;
-
-        let scratchId = undefined;
-        for (const name in customInstruments) {
-          if (normalizedLabel.includes(sanitizeLabel(name))) {
-            scratchId = customInstruments[name];
-            break;
-          }
-        }
-        if (!scratchId && programNumber !== null) {
-          scratchId = gmToScratchId(programNumber);
-        }
-
-        const isDrum = track.instrument?.family === "drums" || track.instrument?.number === 128;
-        const noteList = [];
-
-        track.notes.forEach(note => {
-          const startFrame = Math.round(note.time * 30);
-          const durationBeats = note.duration / secondsPerBeat;
-          const volume = normalizeVelocity(note.velocity);
-
-          if (isDrum) {
-            const drumId = midiToScratchDrum[note.midi];
-            if (drumId) {
-              if (!trackNotes["drums"]) {
-                trackNotes["drums"] = { scratch_id: 0, notes: [] };
-              }
-              trackNotes["drums"].notes.push([drumId, startFrame, durationBeats, volume]);
-            }
-          } else {
-            noteList.push([note.midi, startFrame, durationBeats, volume]);
-          }
-        });
-
-        if (!isDrum && noteList.length > 0) {
-          trackNotes[label] = { scratch_id: scratchId, notes: noteList };
-        }
-      });
-
-      // ドラム未定義ノート収集
-      const undefinedDrumNotes = new Set();
-      midi.tracks.forEach(track => {
-        const isDrum = track.instrument?.family === "drums" || track.instrument?.number === 128;
-        if (isDrum) {
-          track.notes.forEach(note => {
-            const drumId = midiToScratchDrum[note.midi];
-            if (!drumId) {
-              undefinedDrumNotes.add(note.midi);
-            }
-          });
-        }
-      });
-
-      if (undefinedDrumNotes.size > 0) {
-        log.textContent += "\n以下の内容をgannbaru306のMIDI再生プログラムに貼り付けてください。ドラムが正しく認識されませんでした。\n";
-        [...undefinedDrumNotes].sort((a, b) => a - b).forEach(midiNote => {
-          log.textContent += `${midiNote}\n`;
-        });
-      }
-
-      log.textContent += "\n変換完了！ノート数:\n"; 
-      Object.entries(trackNotes).forEach(([label, data]) => {
-        log.textContent += `${label}: ${data.notes.length} notes\n`;
-      });
-
-      const timestamp = new Date().toISOString().replace(/[-:T]/g, "").slice(0, 15);
-      const lines = [];
-
-      // 楽器IDリスト
-      for (const [label, data] of Object.entries(trackNotes)) {
-        if (data.notes.length > 0) {
-          lines.push(`${data.scratch_id}`);
-        }
-      }
-      lines.push("/");
-
-      // ノート情報
-      for (const [label, data] of Object.entries(trackNotes)) {
-        if (data.notes.length > 0) {
-          data.notes.forEach(([note, frame, beats, volume]) => {
-            lines.push(`${note}/${frame}/${beats.toFixed(2)}/${volume}`);
-          });
-          lines.push("/");
-        }
-      }
-
-      const blob = new Blob([lines.join("\n")], { type: "text/plain" });
-      const link = document.createElement("a");
-      link.href = URL.createObjectURL(blob);
-      link.download = `combined_notes_${timestamp}.txt`;
-      link.click();
-    });
+    // 再生中のシークバー更新
+    setInterval(() => {
+      if (!midiLoaded || !picoAudio.playing) return;
+      const current = picoAudio.context.currentTime - picoAudio.startTime;
+      seekBar.value = (current / duration) * 100;
+    }, 200);
   </script>
 </body>
 </html>
