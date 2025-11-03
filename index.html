@@ -1,160 +1,115 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <title>MIDI to Scratch by gannbaru306</title>
-  <script src="https://unpkg.com/picoaudio/dist/browser/PicoAudio.js"></script>
-  <style>
-    body {
-      font-family: sans-serif;
-      padding: 20px;
-    }
-    #drop-zone {
-      border: 2px dashed #aaa;
-      padding: 40px;
-      text-align: center;
-      color: #666;
-      cursor: pointer;
-      margin-bottom: 20px;
-    }
-    #drop-zone.dragover {
-      border-color: #00aaff;
-      background-color: #f0f8ff;
-    }
-    #player-controls button {
-      margin-right: 5px;
-    }
-    #log {
-      background: #f4f4f4;
-      border: 1px solid #ccc;
-      padding: 10px;
-      white-space: pre-wrap;
-      height: 200px;
-      overflow-y: auto;
-      margin-top: 10px;
-    }
-    #seekBar {
-      width: 100%;
-      margin-top: 8px;
-    }
-  </style>
+<meta charset="UTF-8">
+<title>PicoAudio MIDI Player</title>
+<script src="https://unpkg.com/picoaudio/dist/browser/PicoAudio.js"></script>
+<style>
+body {
+  font-family: sans-serif;
+  text-align: center;
+  margin: 30px;
+}
+button, input[type="range"] {
+  margin: 10px;
+}
+</style>
 </head>
 <body>
-  <h2>MIDI変換ツールv2.7</h2>
-  <div id="drop-zone">ここをクリックするか、MIDIファイルをドラッグしてください</div>
-  <input type="file" id="midiFile" accept=".mid,.midi" style="display:none;" />
-  <button id="convertBtn">変換してダウンロード</button>
+  <h2>PicoAudio MIDI Player</h2>
+  <input type="file" id="fileInput" accept=".mid,.midi"><br>
+  <button id="playBtn">▶ 再生 / 一時停止</button>
+  <button id="restartBtn">⏮ 最初から</button>
+  <button id="backBtn">⏪ -5秒</button>
+  <button id="forwardBtn">⏩ +5秒</button><br>
+  <input type="range" id="seekBar" value="0" min="0" max="100" step="0.01" style="width:80%;"><br>
+  <span id="timeDisplay">0.0 / 0.0 秒</span>
 
-  <div id="player-controls">
-    <button id="playBtn">再生</button>
-    <button id="pauseBtn">一時停止</button>
-    <button id="rewindBtn">⏪ 10秒戻す</button>
-    <button id="forwardBtn">⏩ 10秒進める</button>
-    <button id="restartBtn">⏮ 最初から</button>
-  </div>
+<script>
+const picoAudio = new PicoAudio();
+let parsedData = null;
+let isPlaying = false;
+let duration = 0;
 
-  <input type="range" id="seekBar" min="0" max="100" value="0" step="0.1">
-  <br>
-  <label for="volumeSlider">音量</label>
-  <input type="range" id="volumeSlider" min="0" max="1" step="0.01" value="0.5">
+// ファイル読み込み
+document.getElementById('fileInput').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const arrayBuffer = await file.arrayBuffer();
+  const uint8 = new Uint8Array(arrayBuffer);
+  parsedData = picoAudio.parseSMF(uint8);
+  picoAudio.setData(parsedData);
+  duration = parsedData.duration; // 秒単位
+  document.getElementById("timeDisplay").textContent = `0.0 / ${duration.toFixed(1)} 秒`;
+});
 
-  <pre id="log">ログ出力エリア</pre>
+// 再生/一時停止
+document.getElementById('playBtn').addEventListener('click', () => {
+  if (!parsedData) return;
+  if (isPlaying) {
+    picoAudio.pause();
+  } else {
+    picoAudio.play();
+  }
+  isPlaying = !isPlaying;
+});
 
-  <script type="module">
-    import { Midi } from "https://cdn.skypack.dev/@tonejs/midi";
+// 最初から
+document.getElementById('restartBtn').addEventListener('click', () => {
+  if (!parsedData) return;
+  picoAudio.pause();
+  picoAudio.initStatus(); // 状態リセット
+  picoAudio.setStartTime(0);
+  picoAudio.play();
+  isPlaying = true;
+});
 
-    const picoAudio = new PicoAudio();
-    let midiLoaded = false;
-    let midi = null;
-    let duration = 0;
-    let currentVolume = 0.5;
-    const log = document.getElementById("log");
+// 5秒戻す
+document.getElementById('backBtn').addEventListener('click', () => {
+  if (!parsedData) return;
+  const now = picoAudio.context.currentTime - picoAudio.startTime;
+  const newTime = Math.max(0, now - 5);
+  picoAudio.pause();
+  picoAudio.setStartTime(newTime);
+  picoAudio.play();
+  isPlaying = true;
+});
 
-    const dropZone = document.getElementById("drop-zone");
-    const fileInput = document.getElementById("midiFile");
+// 5秒進める
+document.getElementById('forwardBtn').addEventListener('click', () => {
+  if (!parsedData) return;
+  const now = picoAudio.context.currentTime - picoAudio.startTime;
+  const newTime = Math.min(duration, now + 5);
+  picoAudio.pause();
+  picoAudio.setStartTime(newTime);
+  picoAudio.play();
+  isPlaying = true;
+});
 
-    dropZone.addEventListener("click", () => fileInput.click());
-    dropZone.addEventListener("dragover", e => {
-      e.preventDefault();
-      dropZone.classList.add("dragover");
-    });
-    dropZone.addEventListener("dragleave", () => dropZone.classList.remove("dragover"));
-    dropZone.addEventListener("drop", e => {
-      e.preventDefault();
-      dropZone.classList.remove("dragover");
-      const file = e.dataTransfer.files[0];
-      if (file) handleFile(file);
-    });
-    fileInput.addEventListener("change", e => {
-      const file = e.target.files[0];
-      if (file) handleFile(file);
-    });
+// シークバー操作
+const seekBar = document.getElementById('seekBar');
+seekBar.addEventListener('input', (e) => {
+  if (!parsedData) return;
+  const ratio = parseFloat(e.target.value) / 100;
+  const newTime = duration * ratio;
+  picoAudio.pause();
+  picoAudio.setStartTime(newTime);
+  picoAudio.play();
+  isPlaying = true;
+});
 
-    async function handleFile(file) {
-      log.textContent = `読み込み中: ${file.name}`;
-      const arrayBuffer = await file.arrayBuffer();
-      midi = new Midi(arrayBuffer);
-      const smfData = new Uint8Array(arrayBuffer);
-      await picoAudio.init();
-      const parsedData = picoAudio.parseSMF(smfData);
-      picoAudio.setData(parsedData);
-      midiLoaded = true;
-      duration = parsedData.playTime; // 再生時間(秒)
-      log.textContent = `読み込み完了: ${file.name}\n再生準備完了 (${duration.toFixed(1)}秒)`;
-    }
-
-    // 再生・停止
-    document.getElementById("playBtn").addEventListener("click", () => {
-      if (!midiLoaded) return log.textContent += "\nMIDIファイルを読み込んでください";
-      picoAudio.play();
-      log.textContent += "\n再生開始";
-    });
-    document.getElementById("pauseBtn").addEventListener("click", () => {
-      picoAudio.pause();
-      log.textContent += "\n一時停止";
-    });
-
-    // 10秒戻す・進める・最初から
-    document.getElementById("rewindBtn").addEventListener("click", () => {
-      const newTime = Math.max(picoAudio.context.currentTime - picoAudio.startTime - 10, 0);
-      picoAudio.setStartTime(newTime);
-      picoAudio.play();
-      log.textContent += "\n⏪ 10秒戻しました";
-    });
-    document.getElementById("forwardBtn").addEventListener("click", () => {
-      const newTime = Math.min(picoAudio.context.currentTime - picoAudio.startTime + 10, duration);
-      picoAudio.setStartTime(newTime);
-      picoAudio.play();
-      log.textContent += "\n⏩ 10秒進めました";
-    });
-    document.getElementById("restartBtn").addEventListener("click", () => {
-      picoAudio.setStartTime(0);
-      picoAudio.play();
-      log.textContent += "\n⏮ 最初から再生";
-    });
-
-    // 音量スライダー
-    document.getElementById("volumeSlider").addEventListener("input", e => {
-      currentVolume = parseFloat(e.target.value);
-      picoAudio.setMasterVolume(currentVolume);
-    });
-
-    // シークバー
-    const seekBar = document.getElementById("seekBar");
-    seekBar.addEventListener("input", e => {
-      if (!midiLoaded) return;
-      const percent = parseFloat(e.target.value);
-      const newTime = (percent / 100) * duration;
-      picoAudio.setStartTime(newTime);
-      picoAudio.play();
-    });
-
-    // 再生中のシークバー更新
-    setInterval(() => {
-      if (!midiLoaded || !picoAudio.playing) return;
-      const current = picoAudio.context.currentTime - picoAudio.startTime;
-      seekBar.value = (current / duration) * 100;
-    }, 200);
-  </script>
+// 再生位置の更新
+setInterval(() => {
+  if (!parsedData || !isPlaying) return;
+  const now = picoAudio.context.currentTime - picoAudio.startTime;
+  const ratio = Math.min(100, (now / duration) * 100);
+  seekBar.value = ratio;
+  document.getElementById("timeDisplay").textContent =
+    `${now.toFixed(1)} / ${duration.toFixed(1)} 秒`;
+  if (now >= duration) {
+    isPlaying = false;
+  }
+}, 200);
+</script>
 </body>
 </html>
