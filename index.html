@@ -1,132 +1,170 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <title>グリッチ文字（HIDDEN THINGS）</title>
-  <style>
-    body {
-      margin: 0;
-      padding: 0;
-      background: black;
-      color: white;
-      font-size: 3rem;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-      overflow: hidden;
-    }
- 
-    .glitch-container {
-      display: flex;
-      gap: 0.2rem;
-    }
- 
-    .glitch-char {
-      position: relative;
-      display: inline-block;
-      color: white;
-      animation: glitch-anim 1s infinite;
-    }
- 
-    .glitch-char::before,
-    .glitch-char::after {
-      content: attr(data-char);
-      position: absolute;
-      left: 0;
-      top: 0;
-      width: 100%;
-      overflow: hidden;
-      color: white;
-      background: black;
-      pointer-events: none;
-    }
- 
-    .glitch-char::before {
-      text-shadow: -2px 0 red;
-      animation: glitch-before 1s infinite linear alternate-reverse;
-    }
- 
-    .glitch-char::after {
-      text-shadow: 2px 0 blue;
-      animation: glitch-after 1s infinite linear alternate-reverse;
-    }
- 
-    @keyframes glitch-before {
-      0% { clip-path: inset(0 0 80% 0); }
-      50% { clip-path: inset(10% 0 60% 0); }
-      100% { clip-path: inset(80% 0 0 0); }
-    }
- 
-    @keyframes glitch-after {
-      0% { clip-path: inset(80% 0 0 0); }
-      50% { clip-path: inset(10% 0 60% 0); }
-      100% { clip-path: inset(0 0 80% 0); }
-    }
- 
-    @keyframes glitch-anim {
-      0% { transform: translate(0); }
-      20% { transform: translate(-1px, 1px); }
-      40% { transform: translate(-1px, -1px); }
-      60% { transform: translate(1px, 1px); }
-      80% { transform: translate(1px, -1px); }
-      100% { transform: translate(0); }
-    }
-  </style>
+<meta charset="UTF-8">
+<title>グリッチ文字（HIDDEN THINGS）- 砂嵐MIX</title>
+<style>
+body {
+  margin: 0;
+  padding: 0;
+  background: black;
+  color: white;
+  font-size: 3rem;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  overflow: hidden;
+  position: relative;
+}
+
+/* 🌀 画面全体の砂嵐（ノイズ）レイヤー */
+body::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  /* 白黒の細かいドットノイズ */
+  background: 
+    radial-gradient(circle, rgba(255,255,255,0.15) 1px, transparent 1px),
+    radial-gradient(circle, rgba(255,255,255,0.1) 1px, transparent 1px);
+  background-size: 4px 4px, 7px 9px;
+  background-position: 0 0, 2px 3px;
+  opacity: 0.6;
+  z-index: 10;
+  pointer-events: none;
+  animation: grain-anim 0.1s infinite steps(2);
+}
+
+/* 📺 アナログテレビ風の走査線 */
+body::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.3) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+  background-size: 100% 4px, 6px 100%;
+  z-index: 11;
+  pointer-events: none;
+}
+
+/* 砂嵐を高速で動かすアニメーション */
+@keyframes grain-anim {
+  0% { background-position: 0 0, 2px 3px; }
+  50% { background-position: 10px 20px, -5px 12px; }
+  100% { background-position: -8px 5px, 4px -9px; }
+}
+
+.glitch-container {
+  display: flex;
+  gap: 0.2rem;
+  z-index: 2; /* 砂嵐の下、背景の上に配置 */
+}
+
+.glitch-char {
+  position: relative;
+  display: inline-block;
+  color: white;
+  animation: glitch-anim 0.05s infinite; /* 揺れをより高速化（1s → 0.05s） */
+}
+
+/* 色をよりサイバーなネオンカラー（シアン・マゼンタ）に変更 */
+.glitch-char::before, .glitch-char::after {
+  content: attr(data-char);
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  overflow: hidden;
+  color: white;
+  background: black;
+  pointer-events: none;
+}
+
+.glitch-char::before {
+  text-shadow: -3px 0 #00ffff; /* シアン */
+  animation: glitch-before 0.3s infinite linear alternate-reverse;
+}
+
+.glitch-char::after {
+  text-shadow: 3px 0 #ff00ff; /* マゼンタ */
+  animation: glitch-after 0.2s infinite linear alternate-reverse;
+}
+
+@keyframes glitch-before {
+  0% { clip-path: inset(10% 0 80% 0); }
+  30% { clip-path: inset(40% 0 40% 0); }
+  70% { clip-path: inset(80% 0 5% 0); }
+  100% { clip-path: inset(0 0 95% 0); }
+}
+
+@keyframes glitch-after {
+  0% { clip-path: inset(90% 0 0 0); }
+  40% { clip-path: inset(20% 0 60% 0); }
+  80% { clip-path: inset(60% 0 10% 0); }
+  100% { clip-path: inset(0 0 85% 0); }
+}
+
+@keyframes glitch-anim {
+  0% { transform: translate(0); }
+  25% { transform: translate(-3px, 2px); }
+  50% { transform: translate(3px, -1px); }
+  75% { transform: translate(-1px, -2px); }
+  100% { transform: translate(2px, 1px); }
+}
+</style>
 </head>
 <body>
-  <div id="glitch-text" class="glitch-container"></div>
- 
-  <script>
-    const fonts = [
-      "monospace", "serif", "sans-serif",
-      "Courier New", "Georgia", "Arial", "Impact", "Verdana",
-      "'Noto Sans JP'", "'Noto Serif JP'", "'Yu Gothic'",
-      "'游ゴシック体'", "'ＭＳ Ｐゴシック'", "'ヒラギノ角ゴ Pro W3'",
-      "'メイリオ'", "'Roboto Mono'", "'Fira Code'", "'IBM Plex Mono'"
-    ];
- 
-    const randomChars = "アイウエオカキクケコサシスセソタチツテトナニヌネノ" +
-                        "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789$#%&@!?";
- 
-    const baseText = "code:HIDDENTHINGS";
-    const container = document.getElementById("glitch-text");
- 
-    // 文字要素の初期生成
-    for (let i = 0; i < baseText.length; i++) {
-      const span = document.createElement("span");
-      span.classList.add("glitch-char");
-      span.dataset.char = baseText[i];
-      span.textContent = baseText[i];
-      span.dataset.original = baseText[i]; // 元の文字を記録
-      container.appendChild(span);
+<div id="glitch-text" class="glitch-container"></div>
+<script>
+const fonts = [
+  "monospace", "serif", "sans-serif", "Courier New", "Georgia", "Arial", "Impact", "Verdana",
+  "'Noto Sans JP'", "'Noto Serif JP'", "'Yu Gothic'", "'游ゴシック体'", "'ＭＳ Ｐゴシック'",
+  "'ヒラギノ角ゴ Pro W3'", "'メイリオ'", "'Roboto Mono'", "'Fira Code'", "'IBM Plex Mono'"
+];
+
+/* 砂嵐感を出すために、バグ文字にノイズ系の記号を追加 */
+const randomChars = "░▒▓█" + "アイウエオカキクケコサシスセソタチツテトナニヌネノ" + "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789$#%&@!?";
+const baseText = "gannbaru306";
+const container = document.getElementById("glitch-text");
+
+for (let i = 0; i < baseText.length; i++) {
+  const span = document.createElement("span");
+  span.classList.add("glitch-char");
+  span.dataset.char = baseText[i];
+  span.textContent = baseText[i];
+  span.dataset.original = baseText[i];
+  container.appendChild(span);
+}
+
+const glitchChars = container.querySelectorAll(".glitch-char");
+
+function update() {
+  glitchChars.forEach(char => {
+    /* 確率を40%に上げ、より不安定に */
+    const shouldGlitch = Math.random() < 0.4; 
+    if (shouldGlitch) {
+      const randomChar = randomChars[Math.floor(Math.random() * randomChars.length)];
+      const randomFont = fonts[Math.floor(Math.random() * fonts.length)];
+      char.textContent = randomChar;
+      char.dataset.char = randomChar;
+      char.style.fontFamily = randomFont;
+    } else {
+      const original = char.dataset.original;
+      char.textContent = original;
+      char.dataset.char = original;
+      char.style.fontFamily = "";
     }
- 
-    const glitchChars = container.querySelectorAll(".glitch-char");
- 
-    function update() {
-      glitchChars.forEach(char => {
-        const shouldGlitch = Math.random() < 0.3; // 30%の確率でグリッチ
- 
-        if (shouldGlitch) {
-          const randomChar = randomChars[Math.floor(Math.random() * randomChars.length)];
-          const randomFont = fonts[Math.floor(Math.random() * fonts.length)];
-          char.textContent = randomChar;
-          char.dataset.char = randomChar;
-          char.style.fontFamily = randomFont;
-        } else {
-          const original = char.dataset.original;
-          char.textContent = original;
-          char.dataset.char = original;
-          char.style.fontFamily = ""; // デフォルトフォントに戻す
-        }
-      });
- 
-      setTimeout(update, 100); // 少し遅延して繰り返す（requestAnimationFrameより制御しやすい）
-    }
- 
-    update();
-  </script>
+  });
+  
+  /* 切り替え速度を高速化（100ms → 60ms） */
+  setTimeout(update, 60); 
+}
+update();
+</script>
 </body>
 </html>
- 
